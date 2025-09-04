@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web3 Storefront</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase global variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
+        
+        // Initialize Firebase
+        let app, db, auth;
+        if (Object.keys(firebaseConfig).length > 0) {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            setLogLevel('debug');
+        }
+        let userId = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const productContainer = document.getElementById('product-container');
+            const adminPanel = document.getElementById('admin-panel');
+            const addProductForm = document.getElementById('add-product-form');
+            const connectMetamaskBtn = document.getElementById('connect-metamask-btn');
+            const userWalletDiv = document.getElementById('user-wallet');
+            const adminWalletDiv = document.getElementById('admin-wallet');
+            const adminPanelBtn = document.getElementById('admin-panel-btn');
+            const backToUserBtn = document.getElementById('back-to-user-btn');
+            const mainContainer = document.getElementById('main-container');
+            const modal = document.getElementById('modal');
+            const closeModalBtn = document.getElementById('close-modal');
+            const modalMessage = document.getElementById('modal-message');
+
+            // Modal utility functions
+            function showModal(message) {
+                modalMessage.textContent = message;
+                modal.classList.remove('hidden');
+            }
+
+            closeModalBtn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+            });
+
+            // Authentication logic
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    userWalletDiv.textContent = `User ID: ${userId}`;
+                    if (userId === 'admin_user_id_placeholder') { // Use a hardcoded admin ID for this demo
+                        adminPanelBtn.classList.remove('hidden');
+                    }
+                    if (db) {
+                        onSnapshot(collection(db, `artifacts/${appId}/public/data/products`), (snapshot) => {
+                            const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                            renderProducts(products);
+                        });
+                    } else {
+                        showModal("Firebase is not configured. Product data will not be persisted.");
+                    }
+                } else {
+                    userWalletDiv.textContent = "Connecting...";
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Firebase auth error:", error);
+                        showModal("Failed to authenticate with Firebase. Please check the console for details.");
+                    }
+                }
+            });
+
+            // MetaMask connection
+            let userAddress = null;
+            connectMetamaskBtn.addEventListener('click', async () => {
+                if (window.ethereum) {
+                    try {
+                        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                        userAddress = accounts[0];
+                        userWalletDiv.textContent = `User Address: ${userAddress}`;
+                        showModal("Successfully connected to MetaMask!");
+                    } catch (error) {
+                        console.error(error);
+                        showModal("Could not connect to MetaMask. Please check the console for details.");
+                    }
+                } else {
+                    showModal("MetaMask is not installed. Please install it to use this feature.");
+                }
+            });
+
+            // Render products on the user frontend
+            function renderProducts(products) {
+                productContainer.innerHTML = '';
+                if (products.length === 0) {
+                    productContainer.innerHTML = '<p class="text-center text-gray-400">No products available. Please add some from the admin panel.</p>';
+                }
+                products.forEach(product => {
+                    const productCard = document.createElement('div');
+                    productCard.className = 'bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col items-center text-center';
+                    productCard.innerHTML = `
+                        <h2 class="text-xl font-bold text-white mb-2">${product.name}</h2>
+                        <p class="text-gray-400 mb-4">${product.description}</p>
+                        <p class="text-lg font-semibold text-green-400 mb-4">$${parseFloat(product.price).toFixed(2)} USDT</p>
+                        <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-40 object-cover rounded-md mb-4 onerror="this.onerror=null;this.src='https://placehold.co/400x200/2d3748/a0aec0?text=Image+Not+Found';" />
+                        <button class="buy-btn bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full transition-colors w-full" data-id="${product.id}" data-price="${product.price}">Buy Now</button>
+                    `;
+                    productContainer.appendChild(productCard);
+                });
+
+                document.querySelectorAll('.buy-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const price = parseFloat(e.target.dataset.price);
+                        handlePurchase(price);
+                    });
+                });
+            }
+
+            // Handle simulated purchase
+            async function handlePurchase(price) {
+                if (!userAddress) {
+                    showModal("Please connect your MetaMask wallet first.");
+                    return;
+                }
+                
+                // Simulate very small transfers with the platform fee
+                const platformFee = 0.000000000000001; // 0.001 pennies in a very small amount to be handled in a smart contract
+                const totalAmount = price + platformFee;
+                
+                const message = `Simulating a purchase of $${price.toFixed(2)} USDT with a platform fee of $${platformFee.toFixed(15)} USDT. Total: $${totalAmount.toFixed(15)} USDT. This transaction would be sent to a smart contract to distribute funds.`;
+                showModal(message);
+                
+                // Here is where you would call a smart contract function
+                // Example with ethers.js:
+                // const contract = new ethers.Contract(contractAddress, contractABI, signer);
+                // const tx = await contract.buyProduct(productId, { value: ethers.utils.parseUnits(totalAmount.toString(), 'ether') });
+                // await tx.wait();
+            }
+
+            // Admin panel functionality
+            adminPanelBtn.addEventListener('click', () => {
+                mainContainer.classList.add('hidden');
+                adminPanel.classList.remove('hidden');
+            });
+
+            backToUserBtn.addEventListener('click', () => {
+                adminPanel.classList.add('hidden');
+                mainContainer.classList.remove('hidden');
+            });
+
+            addProductForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('product-name').value;
+                const description = document.getElementById('product-description').value;
+                const price = parseFloat(document.getElementById('product-price').value);
+                const imageUrl = document.getElementById('product-image-url').value;
+
+                if (isNaN(price)) {
+                    showModal("Please enter a valid price.");
+                    return;
+                }
+
+                if (db) {
+                    try {
+                        const productsCollection = collection(db, `artifacts/${appId}/public/data/products`);
+                        await addDoc(productsCollection, { name, description, price, imageUrl });
+                        showModal("Product added successfully!");
+                        addProductForm.reset();
+                    } catch (e) {
+                        console.error("Error adding document: ", e);
+                        showModal("Error adding product. Please check the console.");
+                    }
+                } else {
+                    showModal("Firebase is not initialized. Cannot add product.");
+                }
+            });
+        });
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827;
+            color: #d1d5db;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .rounded-lg {
+            border-radius: 0.75rem;
+        }
+        .shadow-lg {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 700;
+            transition: background-color 0.2s;
+        }
+        .btn-purple {
+            background-color: #9333ea;
+            color: white;
+        }
+        .btn-purple:hover {
+            background-color: #7e22ce;
+        }
+        .input-field {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #374151;
+            background-color: #1f2937;
+            color: #f3f4f6;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #9333ea;
+            box-shadow: 0 0 0 2px rgba(147, 51, 234, 0.5);
+        }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-300">
+    <div id="main-container" class="container">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-4xl font-extrabold text-white">Web3 Store</h1>
+            <div class="flex items-center space-x-4">
+                <div id="user-wallet" class="bg-gray-800 text-sm px-4 py-2 rounded-full">Connecting...</div>
+                <button id="connect-metamask-btn" class="btn btn-purple">Connect MetaMask</button>
+                <button id="admin-panel-btn" class="btn btn-purple hidden">Admin Panel</button>
+            </div>
+        </header>
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-bold text-white mb-2">Our Products</h2>
+            <p class="text-lg text-gray-400">Explore our selection of digital goods</p>
+        </div>
+        <div id="product-container" class="product-grid">
+            <!-- Products will be rendered here -->
+        </div>
+    </div>
+
+    <div id="admin-panel" class="container hidden">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-4xl font-extrabold text-white">Admin Panel</h1>
+            <button id="back-to-user-btn" class="btn btn-purple">Back to Storefront</button>
+        </header>
+        <div class="bg-gray-800 p-8 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-bold text-white mb-6">Add New Product</h2>
+            <form id="add-product-form" class="space-y-4">
+                <div>
+                    <label for="product-name" class="block text-sm font-medium text-gray-400">Product Name</label>
+                    <input type="text" id="product-name" required class="mt-1 input-field">
+                </div>
+                <div>
+                    <label for="product-description" class="block text-sm font-medium text-gray-400">Description</label>
+                    <textarea id="product-description" rows="3" required class="mt-1 input-field"></textarea>
+                </div>
+                <div>
+                    <label for="product-price" class="block text-sm font-medium text-gray-400">Price (USDT)</label>
+                    <input type="number" id="product-price" step="0.01" required class="mt-1 input-field">
+                </div>
+                <div>
+                    <label for="product-image-url" class="block text-sm font-medium text-gray-400">Image URL</label>
+                    <input type="text" id="product-image-url" required class="mt-1 input-field">
+                </div>
+                <button type="submit" class="btn btn-purple w-full">Add Product</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for messages -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden">
+        <div class="bg-gray-800 p-8 rounded-lg shadow-2xl max-w-sm w-full text-center">
+            <p id="modal-message" class="text-lg text-white mb-6"></p>
+            <button id="close-modal" class="btn btn-purple">Close</button>
+        </div>
+    </div>
+</body>
+</html>
