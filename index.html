@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, addDoc, onSnapshot, collection, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase global variables
@@ -22,9 +22,10 @@
             db = getFirestore(app);
             auth = getAuth(app);
             setLogLevel('debug');
+        } else {
+            console.error("Firebase config is missing.");
         }
         let userId = null;
-        let isAdmin = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             const productContainer = document.getElementById('product-container');
@@ -41,9 +42,9 @@
             const closeModalBtn = document.getElementById('close-modal');
             const modalMessage = document.getElementById('modal-message');
             const loginForm = document.getElementById('login-form');
+            const loginEmailInput = document.getElementById('login-email');
             const loginPasswordInput = document.getElementById('login-password');
-
-            const HARDCODED_PASSWORD = "password123";
+            let isAuthReady = false;
 
             // Modal utility functions
             function showModal(message) {
@@ -55,43 +56,70 @@
                 modal.classList.add('hidden');
             });
 
-            // Password-only login logic
-            function checkAdminAccess() {
-                if (isAdmin) {
-                    userWalletDiv.textContent = 'Admin Mode';
-                    adminPanelBtn.classList.remove('hidden');
-                    logoutBtn.classList.remove('hidden');
-                    loginContainer.classList.add('hidden');
-                    mainContainer.classList.remove('hidden');
-                } else {
-                    userWalletDiv.textContent = "Please Login or Connect Wallet";
-                    adminPanelBtn.classList.add('hidden');
-                    logoutBtn.classList.add('hidden');
-                    loginContainer.classList.remove('hidden');
-                    mainContainer.classList.add('hidden');
-                }
+            // Authentication logic
+            if (auth) {
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userWalletDiv.textContent = `User ID: ${userId}`;
+                        
+                        let isAdmin = false;
+                        try {
+                            const rolesRef = doc(db, `artifacts/${appId}/public/data/roles`, userId);
+                            const rolesDoc = await getDoc(rolesRef);
+                            isAdmin = rolesDoc.exists();
+                        } catch (e) {
+                            console.error("Error fetching user role:", e);
+                            showModal("Error checking user permissions. Please check the console.");
+                        }
+
+                        if (isAdmin) {
+                            adminPanelBtn.classList.remove('hidden');
+                            logoutBtn.classList.remove('hidden');
+                        } else {
+                            adminPanelBtn.classList.add('hidden');
+                            logoutBtn.classList.add('hidden');
+                        }
+
+                        loginContainer.classList.add('hidden');
+                        mainContainer.classList.remove('hidden');
+                        isAuthReady = true;
+                    } else {
+                        userId = null;
+                        userWalletDiv.textContent = "Please Login or Connect Wallet";
+                        loginContainer.classList.remove('hidden');
+                        mainContainer.classList.add('hidden');
+                        adminPanelBtn.classList.add('hidden');
+                        logoutBtn.classList.add('hidden');
+                        isAuthReady = true;
+                    }
+                });
             }
 
-            // Login form handler (for password-only login)
+            // Login form handler
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                const email = loginEmailInput.value;
                 const password = loginPasswordInput.value;
-                if (password === HARDCODED_PASSWORD) {
-                    isAdmin = true;
-                    showModal("Logged in as admin!");
-                } else {
-                    isAdmin = false;
-                    showModal("Incorrect password.");
+
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    // onAuthStateChanged will handle the UI update
+                } catch (error) {
+                    console.error("Login error:", error);
+                    showModal(`Login failed: ${error.message}`);
                 }
-                checkAdminAccess();
-                loginPasswordInput.value = '';
             });
 
             // Logout handler
             logoutBtn.addEventListener('click', async () => {
-                isAdmin = false;
-                showModal("Logged out successfully.");
-                checkAdminAccess();
+                try {
+                    await signOut(auth);
+                    showModal("Logged out successfully.");
+                } catch (error) {
+                    console.error("Logout error:", error);
+                    showModal("Logout failed. Please try again.");
+                }
             });
 
             // MetaMask connection
@@ -147,7 +175,7 @@
                 }
                 
                 // Simulate very small transfers with the platform fee
-                const platformFee = 0.001;
+                const platformFee = 0.000000000000001;
                 const totalAmount = price + platformFee;
                 
                 const message = `Simulating a purchase of $${price.toFixed(2)} USDT with a platform fee of $${platformFee.toFixed(15)} USDT. Total: $${totalAmount.toFixed(15)} USDT. This transaction would be sent to a smart contract to distribute funds.`;
@@ -193,15 +221,13 @@
             });
 
             // Initial view based on login state
-            checkAdminAccess();
-
             if (db) {
-                onSnapshot(collection(db, `artifacts/${appId}/public/data/products`), (snapshot) => {
+                 onSnapshot(collection(db, `artifacts/${appId}/public/data/products`), (snapshot) => {
                     const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     renderProducts(products);
                 });
             } else {
-                showModal("Firebase is not configured. Product data will not be persisted.");
+                 showModal("Firebase is not configured. Product data will not be persisted.");
             }
         });
     </script>
@@ -256,12 +282,16 @@
     </style>
 </head>
 <body class="bg-gray-900 text-gray-300">
-    <div id="login-container" class="container flex flex-col items-center justify-center min-h-screen">
+    <div id="login-container" class="container hidden flex flex-col items-center justify-center min-h-screen">
         <h1 class="text-4xl font-extrabold text-white mb-6">Admin Login</h1>
         <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-sm">
             <form id="login-form" class="space-y-4">
                 <div>
-                    <label for="login-password" class="block text-sm font-medium text-gray-400">Admin Password</label>
+                    <label for="login-email" class="block text-sm font-medium text-gray-400">Email</label>
+                    <input type="email" id="login-email" required class="mt-1 input-field">
+                </div>
+                <div>
+                    <label for="login-password" class="block text-sm font-medium text-gray-400">Password</label>
                     <input type="password" id="login-password" required class="mt-1 input-field">
                 </div>
                 <button type="submit" class="btn btn-purple w-full">Log In</button>
