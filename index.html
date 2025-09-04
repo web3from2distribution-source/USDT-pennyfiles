@@ -7,8 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, onSnapshot, collection, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase global variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -24,6 +24,7 @@
             setLogLevel('debug');
         }
         let userId = null;
+        let isAdmin = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             const productContainer = document.getElementById('product-container');
@@ -31,13 +32,18 @@
             const addProductForm = document.getElementById('add-product-form');
             const connectMetamaskBtn = document.getElementById('connect-metamask-btn');
             const userWalletDiv = document.getElementById('user-wallet');
-            const adminWalletDiv = document.getElementById('admin-wallet');
             const adminPanelBtn = document.getElementById('admin-panel-btn');
+            const logoutBtn = document.getElementById('logout-btn');
             const backToUserBtn = document.getElementById('back-to-user-btn');
             const mainContainer = document.getElementById('main-container');
+            const loginContainer = document.getElementById('login-container');
             const modal = document.getElementById('modal');
             const closeModalBtn = document.getElementById('close-modal');
             const modalMessage = document.getElementById('modal-message');
+            const loginForm = document.getElementById('login-form');
+            const loginPasswordInput = document.getElementById('login-password');
+
+            const HARDCODED_PASSWORD = "password123";
 
             // Modal utility functions
             function showModal(message) {
@@ -49,35 +55,43 @@
                 modal.classList.add('hidden');
             });
 
-            // Authentication logic
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    userWalletDiv.textContent = `User ID: ${userId}`;
-                    if (userId === 'admin_user_id_placeholder') { // Use a hardcoded admin ID for this demo
-                        adminPanelBtn.classList.remove('hidden');
-                    }
-                    if (db) {
-                        onSnapshot(collection(db, `artifacts/${appId}/public/data/products`), (snapshot) => {
-                            const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                            renderProducts(products);
-                        });
-                    } else {
-                        showModal("Firebase is not configured. Product data will not be persisted.");
-                    }
+            // Password-only login logic
+            function checkAdminAccess() {
+                if (isAdmin) {
+                    userWalletDiv.textContent = 'Admin Mode';
+                    adminPanelBtn.classList.remove('hidden');
+                    logoutBtn.classList.remove('hidden');
+                    loginContainer.classList.add('hidden');
+                    mainContainer.classList.remove('hidden');
                 } else {
-                    userWalletDiv.textContent = "Connecting...";
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Firebase auth error:", error);
-                        showModal("Failed to authenticate with Firebase. Please check the console for details.");
-                    }
+                    userWalletDiv.textContent = "Please Login or Connect Wallet";
+                    adminPanelBtn.classList.add('hidden');
+                    logoutBtn.classList.add('hidden');
+                    loginContainer.classList.remove('hidden');
+                    mainContainer.classList.add('hidden');
                 }
+            }
+
+            // Login form handler (for password-only login)
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const password = loginPasswordInput.value;
+                if (password === HARDCODED_PASSWORD) {
+                    isAdmin = true;
+                    showModal("Logged in as admin!");
+                } else {
+                    isAdmin = false;
+                    showModal("Incorrect password.");
+                }
+                checkAdminAccess();
+                loginPasswordInput.value = '';
+            });
+
+            // Logout handler
+            logoutBtn.addEventListener('click', async () => {
+                isAdmin = false;
+                showModal("Logged out successfully.");
+                checkAdminAccess();
             });
 
             // MetaMask connection
@@ -133,17 +147,11 @@
                 }
                 
                 // Simulate very small transfers with the platform fee
-                const platformFee = 0.000000000000001; // 0.001 pennies in a very small amount to be handled in a smart contract
+                const platformFee = 0.000000000000001;
                 const totalAmount = price + platformFee;
                 
                 const message = `Simulating a purchase of $${price.toFixed(2)} USDT with a platform fee of $${platformFee.toFixed(15)} USDT. Total: $${totalAmount.toFixed(15)} USDT. This transaction would be sent to a smart contract to distribute funds.`;
                 showModal(message);
-                
-                // Here is where you would call a smart contract function
-                // Example with ethers.js:
-                // const contract = new ethers.Contract(contractAddress, contractABI, signer);
-                // const tx = await contract.buyProduct(productId, { value: ethers.utils.parseUnits(totalAmount.toString(), 'ether') });
-                // await tx.wait();
             }
 
             // Admin panel functionality
@@ -183,6 +191,18 @@
                     showModal("Firebase is not initialized. Cannot add product.");
                 }
             });
+
+            // Initial view based on login state
+            checkAdminAccess();
+
+            if (db) {
+                onSnapshot(collection(db, `artifacts/${appId}/public/data/products`), (snapshot) => {
+                    const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderProducts(products);
+                });
+            } else {
+                showModal("Firebase is not configured. Product data will not be persisted.");
+            }
         });
     </script>
     <style>
@@ -236,13 +256,27 @@
     </style>
 </head>
 <body class="bg-gray-900 text-gray-300">
-    <div id="main-container" class="container">
+    <div id="login-container" class="container flex flex-col items-center justify-center min-h-screen">
+        <h1 class="text-4xl font-extrabold text-white mb-6">Admin Login</h1>
+        <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-sm">
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="login-password" class="block text-sm font-medium text-gray-400">Admin Password</label>
+                    <input type="password" id="login-password" required class="mt-1 input-field">
+                </div>
+                <button type="submit" class="btn btn-purple w-full">Log In</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="main-container" class="container hidden">
         <header class="flex justify-between items-center mb-8">
             <h1 class="text-4xl font-extrabold text-white">Web3 Store</h1>
             <div class="flex items-center space-x-4">
-                <div id="user-wallet" class="bg-gray-800 text-sm px-4 py-2 rounded-full">Connecting...</div>
+                <div id="user-wallet" class="bg-gray-800 text-sm px-4 py-2 rounded-full">Not Logged In</div>
                 <button id="connect-metamask-btn" class="btn btn-purple">Connect MetaMask</button>
                 <button id="admin-panel-btn" class="btn btn-purple hidden">Admin Panel</button>
+                <button id="logout-btn" class="btn bg-red-600 hover:bg-red-700 text-white hidden">Logout</button>
             </div>
         </header>
         <div class="text-center mb-8">
