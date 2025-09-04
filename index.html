@@ -147,7 +147,7 @@
                 }
                 
                 // Simulate very small transfers with the platform fee
-                const platformFee = 0.000000000000001;
+                const platformFee = 0.001;
                 const totalAmount = price + platformFee;
                 
                 const message = `Simulating a purchase of $${price.toFixed(2)} USDT with a platform fee of $${platformFee.toFixed(15)} USDT. Total: $${totalAmount.toFixed(15)} USDT. This transaction would be sent to a smart contract to distribute funds.`;
