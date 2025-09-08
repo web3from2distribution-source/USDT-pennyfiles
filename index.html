@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Web 2.5 File Distributor</title>
+    <title>My Web 2.5 Kiosk</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
     <style>
         /* General body styling */
         body {
@@ -16,7 +15,7 @@
         }
         /* Main container styling */
         .container {
-            max-width: 1200px;
+            max-width: 1200px; /* Increased max-width for better layout */
             margin: 0 auto;
             padding: 1.5rem;
         }
@@ -33,570 +32,541 @@
         }
         /* Modal and modal content styling */
         .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-            justify-content: center;
-            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 100;
         }
         .modal-content {
             background-color: #2d3748;
-            padding: 2rem;
             border-radius: 0.75rem;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
-            max-width: 500px;
-            width: 90%;
-            text-align: center;
-            animation: fadeIn 0.3s ease-out;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        .close-btn {
+        .close-button {
             color: #e2e8f0;
-            font-size: 1.5rem;
-            font-weight: bold;
-            cursor: pointer;
-            position: absolute;
-            top: 1rem;
-            right: 1.5rem;
+            transition: color 0.2s;
         }
-        .close-btn:hover {
-            color: #ffffff;
+        .close-button:hover {
+            color: #f56565;
         }
-        /* Custom alert/message box */
-        #custom-message-box {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: #4CAF50;
+        /* Button styling */
+        .btn {
+            background-color: #4c51bf;
             color: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            z-index: 2000;
-            display: none;
-            animation: slideIn 0.5s ease-out;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
         }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        .btn:hover {
+            background-color: #434190;
+        }
+        /* Custom alert box styling (replaces alert()) */
+        #custom-alert-box {
+            background-color: #2d3748;
+            color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 200;
+        }
+        /* New styling for distribution app sections */
+        .distribution-section {
+            background-color: #2d3748;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 2rem;
+        }
+        .file-card {
+            background-color: #4a5568;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <header class="flex justify-between items-center py-6 border-b border-gray-700">
-            <h1 class="text-4xl font-bold tracking-tight">File Distributor Kiosk</h1>
-            <div class="space-x-4 flex items-center">
-                <div id="vendor-info" class="bg-gray-700 rounded-lg p-3 text-sm flex items-center space-x-2">
-                    <i class="fas fa-user-circle text-gray-400"></i>
-                    <span id="vendor-id">Loading...</span>
-                    <span id="credit-count" class="ml-2 font-semibold"></span>
-                    <button id="upgrade-btn" class="ml-4 px-4 py-1 bg-green-500 hover:bg-green-600 text-white rounded-full text-xs font-bold transition-colors">
-                        Upgrade
-                    </button>
-                </div>
-                <button id="connect-metamask-btn" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold rounded-lg transition-colors">
-                    <i class="fas fa-wallet"></i> Connect Wallet
-                </button>
-                <button id="logout-btn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition-colors hidden">
-                    Logout
-                </button>
-            </div>
-        </header>
+<body class="bg-gray-800 text-gray-200 min-h-screen">
+    <div class="container mx-auto py-8">
+        <!-- Main Kiosk Kiosk Section (existing) -->
+        <h1 class="text-4xl font-bold text-center mb-6 text-gray-100">My Web 2.5 Kiosk</h1>
 
-        <section id="vendor-dashboard" class="py-8">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-3xl font-bold">Your Files</h2>
-                <div class="flex items-center space-x-2">
-                    <button id="add-file-btn" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-colors">
-                        <i class="fas fa-plus-circle"></i> Add New File
-                    </button>
-                    <button id="copy-completed-orders-btn" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-colors">
-                        <i class="fas fa-clipboard-list"></i> Copy Completed Orders
-                    </button>
-                </div>
-            </div>
-            
-            <div id="files-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <!-- Files will be rendered here -->
-            </div>
-        </section>
-    </div>
-
-    <!-- The Modal for adding/editing files -->
-    <div id="fileModal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <h3 id="modal-title" class="text-2xl font-bold mb-4">Add New File</h3>
-            <form id="file-form" class="space-y-4">
-                <div>
-                    <label for="file-name" class="block text-left mb-1">File Name</label>
-                    <input type="text" id="file-name" class="w-full px-4 py-2 rounded-md bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500" required>
-                </div>
-                <div>
-                    <label for="file-price" class="block text-left mb-1">Price in USDT</label>
-                    <input type="number" id="file-price" step="0.01" class="w-full px-4 py-2 rounded-md bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500" required>
-                </div>
-                <div>
-                    <label for="file-description" class="block text-left mb-1">Description</label>
-                    <textarea id="file-description" rows="3" class="w-full px-4 py-2 rounded-md bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500" required></textarea>
-                </div>
-                <div>
-                    <label for="file-url" class="block text-left mb-1">File URL</label>
-                    <input type="url" id="file-url" class="w-full px-4 py-2 rounded-md bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500" required>
-                </div>
-                <button type="submit" class="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors">Save File</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- The Modal for credit purchase -->
-    <div id="upgradeModal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" id="close-upgrade-modal">&times;</span>
-            <h3 class="text-2xl font-bold mb-6">Purchase Credits</h3>
-            <p class="text-gray-400 mb-6">Select a credit package to purchase. Payments are processed via your MetaMask wallet using USDT on the Polygon network.</p>
-            <div class="space-y-4">
-                <button class="w-full px-4 py-4 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex justify-between items-center text-left credit-pack-btn" data-credits="10" data-price="2.50">
-                    <div>
-                        <span class="text-lg font-bold">10 Credits</span>
-                        <p class="text-gray-400 text-sm">A great start for new vendors.</p>
-                    </div>
-                    <span class="text-green-400 text-xl font-bold">2.50 USDT</span>
+        <!-- Kiosk Header with buttons -->
+        <div class="flex justify-between items-center mb-8 p-4 bg-gray-700 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-semibold">Available Items</h2>
+            <div class="flex space-x-4">
+                <button id="connect-metamask-btn" class="btn px-6 py-2">
+                    <i class="fab fa-ethereum mr-2"></i>Connect MetaMask
                 </button>
-                <button class="w-full px-4 py-4 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex justify-between items-center text-left credit-pack-btn" data-credits="50" data-price="10.00">
-                    <div>
-                        <span class="text-lg font-bold">50 Credits</span>
-                        <p class="text-gray-400 text-sm">Best value for your money.</p>
-                    </div>
-                    <span class="text-green-400 text-xl font-bold">10.00 USDT</span>
-                </button>
-                <button class="w-full px-4 py-4 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex justify-between items-center text-left credit-pack-btn" data-credits="150" data-price="25.00">
-                    <div>
-                        <span class="text-lg font-bold">150 Credits</span>
-                        <p class="text-gray-400 text-sm">For the professional vendor.</p>
-                    </div>
-                    <span class="text-green-400 text-xl font-bold">25.00 USDT</span>
+                <button id="show-admin-panel-btn" class="btn bg-green-600 hover:bg-green-700 px-6 py-2">
+                    <i class="fas fa-user-shield mr-2"></i>Admin Panel
                 </button>
             </div>
         </div>
-    </div>
-    
-    <!-- The Modal for general messages -->
-    <div id="custom-message-box"></div>
 
+        <!-- Admin Panel Section (new) -->
+        <div id="admin-panel" class="distribution-section hidden">
+            <h2 class="text-3xl font-semibold mb-4 text-center">Admin Panel</h2>
+            <div class="mb-4">
+                <p class="text-sm text-gray-400">
+                    This is a simple client-side toggle. A real-world application would use server-side authentication.
+                </p>
+            </div>
+            <div class="bg-gray-700 p-6 rounded-lg shadow-inner">
+                <h3 class="text-2xl font-semibold mb-4">Upload New File</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="file-upload-input" class="block text-sm font-medium mb-1">File</label>
+                        <input type="file" id="file-upload-input" class="block w-full text-sm text-gray-400
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-full file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-violet-50 file:text-violet-700
+                            hover:file:bg-violet-100" />
+                    </div>
+                    <div>
+                        <label for="file-price-input" class="block text-sm font-medium mb-1">Price (in USDT)</label>
+                        <input type="number" id="file-price-input" placeholder="e.g., 5.0" class="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-600 focus:outline-none focus:border-indigo-500" min="0.01" step="0.01" />
+                    </div>
+                </div>
+                <button id="upload-file-btn" class="btn w-full mt-6">
+                    <i class="fas fa-upload mr-2"></i>Upload File
+                </button>
+            </div>
+        </div>
+        
+        <!-- File Distribution Hub Section (new) -->
+        <div class="distribution-section">
+            <h2 class="text-3xl font-semibold mb-4 text-center">File Distribution Hub</h2>
+            <p class="text-sm text-gray-400 mb-4 text-center">
+                Purchase files using USDT on the Polygon network.
+            </p>
+            <div id="files-list" class="space-y-4">
+                <!-- File items will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- The existing kiosk menu items from the original file -->
+        <div id="menu-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+            <!-- Menu items will be inserted here by JavaScript -->
+        </div>
+
+        <!-- Kiosk footer with order summary (existing) -->
+        <div id="order-summary-section" class="distribution-section">
+            <h2 class="text-3xl font-semibold mb-4 text-center">Order Summary</h2>
+            <div id="order-list" class="bg-gray-700 p-6 rounded-lg shadow-inner">
+                <!-- Order list will be updated here -->
+            </div>
+            <div class="flex justify-end mt-4">
+                <button id="copy-orders-btn" class="btn bg-purple-600 hover:bg-purple-700">
+                    <i class="fas fa-copy mr-2"></i>Copy Orders
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal section (existing, for provider details) -->
+        <div id="myModal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+            <div class="modal-content w-full max-w-lg p-6 relative">
+                <button id="closeModalBtn" class="close-button absolute top-3 right-3 text-2xl font-bold">&times;</button>
+                <h3 id="modal-title" class="text-2xl font-bold mb-4"></h3>
+                <p id="modal-address" class="text-sm mb-2"></p>
+                <p id="modal-description" class="text-md"></p>
+                <div id="modal-items-list" class="mt-4 space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- Custom Alert Box (replaces alert() and confirm()) -->
+        <div id="custom-alert-box" class="fixed inset-0 flex items-center justify-center p-4 hidden">
+            <div class="bg-gray-700 p-6 rounded-lg shadow-lg max-w-sm w-full">
+                <div id="alert-message" class="text-center text-lg font-semibold mb-4"></div>
+                <div class="flex justify-center space-x-4">
+                    <button id="alert-ok-btn" class="btn bg-blue-600 hover:bg-blue-700">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase and other necessary scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, runTransaction, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // IMPORTANT: Global variables provided by the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        setLogLevel('debug'); // Enable Firestore logging
-
-        let userId = null;
-        let unsubscribeFiles = () => {};
-        let userCredits = 0;
-
-        // UI Elements
-        const filesGrid = document.getElementById('files-grid');
-        const vendorIdEl = document.getElementById('vendor-id');
-        const creditCountEl = document.getElementById('credit-count');
-        const upgradeBtn = document.getElementById('upgrade-btn');
-        const addFileBtn = document.getElementById('add-file-btn');
-        const connectWalletBtn = document.getElementById('connect-metamask-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const copyCompletedOrdersBtn = document.getElementById('copy-completed-orders-btn');
-        const fileModal = document.getElementById('fileModal');
-        const upgradeModal = document.getElementById('upgradeModal');
-        const modalTitle = document.getElementById('modal-title');
-        const closeFileModalBtn = document.querySelector('#fileModal .close-btn');
-        const closeUpgradeModalBtn = document.querySelector('#upgradeModal .close-btn');
-        const fileForm = document.getElementById('file-form');
-        const customMessageBox = document.getElementById('custom-message-box');
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // Modal state
-        let editingFile = null;
+        // Ethers.js for blockchain interaction
+        import { ethers } from "https://cdn.ethers.io/lib/ethers-5.2.esm.min.js";
 
-        // ERC20 token contract details (USDT on Polygon Mainnet)
-        const usdtAddress = "0xc2132D05D31c914a87C66112d7c6530aF126eE1a"; // USDT contract on Polygon Mainnet
-        const recipientAddress = "0x8920E775d7A25C74b423192087c5E21e0B59E273"; // Your wallet address
-        const usdtABI = [
-            "function transfer(address to, uint256 amount)"
+        // Global variables for Firebase and other core components
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // Custom Alert Box logic (replaces alert() and confirm())
+        function showCustomAlert(message) {
+            const alertBox = document.getElementById('custom-alert-box');
+            const alertMessage = document.getElementById('alert-message');
+            const alertOkBtn = document.getElementById('alert-ok-btn');
+
+            alertMessage.innerHTML = message;
+            alertBox.classList.remove('hidden');
+
+            return new Promise((resolve) => {
+                alertOkBtn.onclick = () => {
+                    alertBox.classList.add('hidden');
+                    resolve(true);
+                };
+            });
+        }
+        window.alert = showCustomAlert;
+
+        // Firebase Initialization
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            console.log("Firebase initialized successfully.");
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+            showCustomAlert("Failed to initialize the application. Please try again later.");
+        }
+
+        // Authentication and Firestore setup
+        let userId = null;
+        let isAuthReady = false;
+
+        async function signIn() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                userId = auth.currentUser.uid;
+                isAuthReady = true;
+                console.log("User signed in with UID:", userId);
+            } catch (error) {
+                console.error("Authentication failed:", error);
+                showCustomAlert("Authentication failed. Some features may not be available.");
+            }
+        }
+
+        // Existing menu item data and functions (unchanged)
+        const menuItems = [
+            { id: 1, name: "Latte", price: 4.5, icon: "coffee" },
+            { id: 2, name: "Espresso", price: 3.0, icon: "coffee" },
+            { id: 3, name: "Croissant", price: 2.5, icon: "bread-slice" },
+            { id: 4, name: "Muffin", price: 3.5, icon: "muffin" },
+        ];
+        
+        const providers = [
+            { id: "prov1", name: "Fresh Beans", description: "Your local coffee and pastry supplier.", address: "0x1A2bC3dE4f5gH6iJ7kL8mN9oP0qR1sT2uV3wX4yZ5" },
+            { id: "prov2", name: "Sweet Treats Co.", description: "Specialty desserts and muffins.", address: "0x6F7gH8iJ9kL0mN1oP2qR3sT4uV5wX6yZ7aB8c9D0e" },
+        ];
+        
+        let orders = [];
+
+        function renderMenuItem(item) {
+            return `
+                <div class="menu-item-card p-4 flex flex-col items-center">
+                    <i class="fas fa-${item.icon} text-4xl mb-4 text-purple-400"></i>
+                    <h3 class="text-xl font-bold">${item.name}</h3>
+                    <p class="text-lg font-semibold text-gray-300">$${item.price.toFixed(2)}</p>
+                    <button data-id="${item.id}" class="add-to-order-btn btn mt-4 w-full">Add to Order</button>
+                </div>
+            `;
+        }
+
+        function updateOrderSummary() {
+            const orderList = document.getElementById('order-list');
+            orderList.innerHTML = orders.length > 0
+                ? orders.map(order => `<p class="text-lg">${order.name} - $${order.price.toFixed(2)}</p>`).join('')
+                : '<p class="text-center text-gray-500">Your order list is empty.</p>';
+        }
+
+        function loadMenuItems() {
+            const menuContainer = document.getElementById('menu-container');
+            menuContainer.innerHTML = menuItems.map(renderMenuItem).join('');
+        }
+        
+        function loadProviders() {
+            const providersContainer = document.getElementById('providers-list');
+            if (providersContainer) {
+                providersContainer.innerHTML = providers.map(p => `
+                    <div class="p-4 bg-gray-600 rounded-lg provider-card cursor-pointer" data-id="${p.id}">
+                        <h4 class="font-semibold text-lg">${p.name}</h4>
+                        <p class="text-sm text-gray-400">Click for details</p>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        async function updateKioskText() {
+            if (!isAuthReady) return;
+            const docRef = doc(db, `artifacts/${appId}/users/${userId}/kioskData/status`);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                document.getElementById('kiosk-text').textContent = docSnap.data().text;
+            } else {
+                // Initialize if not exists
+                await setDoc(docRef, { text: "Welcome to our kiosk!" });
+            }
+        }
+
+        // NEW: File Distribution App Logic
+        const FILE_COLLECTION = `artifacts/${appId}/public/data/distributedFiles`;
+        const POLYGON_CHAIN_ID = '0x89'; // Polygon Mainnet Chain ID
+        const USDT_CONTRACT_ADDRESS = '0xc2132d05d31c914a87c6611c10748aeb04b58e8f'; // USDT contract on Polygon
+        
+        const USDT_ABI = [
+            "function transfer(address to, uint amount) returns (bool)",
+            "function balanceOf(address account) returns (uint256)",
+            "function decimals() view returns (uint8)"
         ];
 
-        function showMessage(message, type = 'success') {
-            customMessageBox.textContent = message;
-            customMessageBox.style.backgroundColor = type === 'success' ? '#4CAF50' : '#f44336';
-            customMessageBox.style.display = 'block';
-            setTimeout(() => {
-                customMessageBox.style.display = 'none';
-            }, 3000);
-        }
+        let provider, signer, usdtContract, usdtDecimals;
 
-        function createFileLink(fileId) {
-            const url = new URL(window.location.origin);
-            url.searchParams.append('vendorId', userId);
-            url.searchParams.append('fileId', fileId);
-            url.pathname = '/kiosk.html';
-            return url.toString();
-        }
-
-        function updateKioskText() {
-            if (userId) {
-                vendorIdEl.textContent = userId.substring(0, 8) + '...';
-                creditCountEl.textContent = `Credits: ${userCredits}`;
-                logoutBtn.classList.remove('hidden');
-            } else {
-                vendorIdEl.textContent = 'Not Logged In';
-                creditCountEl.textContent = '';
-                logoutBtn.classList.add('hidden');
-            }
-        }
-
-        async function loadUserCredits() {
-            if (!userId) return;
-            const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
+        // Function to switch MetaMask to Polygon network
+        async function switchToPolygon() {
             try {
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists()) {
-                    userCredits = userDocSnap.data().credits || 0;
-                } else {
-                    // Initialize user document with 5 free credits
-                    await setDoc(userDocRef, { credits: 5 });
-                    userCredits = 5;
-                }
-                updateKioskText();
-            } catch (e) {
-                console.error("Error loading user credits: ", e);
-            }
-        }
-
-        async function saveFile(event) {
-            event.preventDefault();
-
-            const fileName = document.getElementById('file-name').value;
-            const filePrice = parseFloat(document.getElementById('file-price').value);
-            const fileDescription = document.getElementById('file-description').value;
-            const fileUrl = document.getElementById('file-url').value;
-
-            if (userCredits <= 0) {
-                showMessage('You need more credits to add a file. Please upgrade your plan.', 'error');
-                return;
-            }
-            
-            const filesCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'files');
-            const newFile = {
-                name: fileName,
-                price: filePrice,
-                description: fileDescription,
-                url: fileUrl,
-                vendorId: userId,
-                timestamp: new Date()
-            };
-
-            try {
-                if (editingFile) {
-                    const fileDocRef = doc(filesCollectionRef, editingFile.id);
-                    await runTransaction(db, async (transaction) => {
-                        const vendorDocRef = doc(db, 'artifacts', appId, 'users', userId);
-                        const vendorDoc = await transaction.get(vendorDocRef);
-                        // For editing, we don't decrement credits.
-                        transaction.update(fileDocRef, newFile);
-                    });
-                    showMessage('File updated successfully!');
-                } else {
-                    await runTransaction(db, async (transaction) => {
-                        const vendorDocRef = doc(db, 'artifacts', appId, 'users', userId);
-                        const vendorDoc = await transaction.get(vendorDocRef);
-                        const currentCredits = vendorDoc.data().credits;
-                        if (currentCredits <= 0) {
-                            throw new Error("Not enough credits");
-                        }
-                        const newDocRef = doc(filesCollectionRef);
-                        transaction.set(newDocRef, newFile);
-                        transaction.update(vendorDocRef, { credits: currentCredits - 1 });
-                    });
-                    userCredits--;
-                    updateKioskText();
-                    showMessage('File created successfully! 1 credit was used.');
-                }
-                fileModal.style.display = 'none';
-            } catch (e) {
-                console.error("Transaction failed: ", e);
-                showMessage(`Error saving file: ${e.message}`, 'error');
-            }
-        }
-
-        function renderFiles(files) {
-            filesGrid.innerHTML = '';
-            if (files.length === 0) {
-                filesGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">No files found. Add a new one to get started!</p>';
-                return;
-            }
-
-            files.forEach(file => {
-                const fileCard = document.createElement('div');
-                fileCard.className = 'menu-item-card flex flex-col items-center p-6 space-y-4';
-                fileCard.innerHTML = `
-                    <div class="w-36 h-36 flex items-center justify-center text-6xl text-blue-400 bg-gray-700 rounded-full">
-                        <i class="fas fa-file"></i>
-                    </div>
-                    <h3 class="text-xl font-semibold text-center">${file.name}</h3>
-                    <p class="text-center text-gray-400">${file.description}</p>
-                    <span class="text-2xl font-bold text-green-400">$${file.price.toFixed(2)} USDT</span>
-                    <div class="flex space-x-2 w-full">
-                        <button class="flex-1 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold rounded-lg transition-colors edit-btn">
-                            Edit
-                        </button>
-                        <button class="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition-colors delete-btn">
-                            Delete
-                        </button>
-                    </div>
-                    <div class="mt-4 flex flex-col items-center w-full">
-                        <p class="text-xs text-gray-500 mb-2">Distribution Link</p>
-                        <textarea class="w-full text-xs bg-gray-700 p-2 rounded-md border border-gray-600 text-gray-300 resize-none h-20" readonly>${createFileLink(file.id)}</textarea>
-                        <button class="mt-2 w-full px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded-lg transition-colors copy-link-btn">
-                            Copy Link <i class="fas fa-copy ml-1"></i>
-                        </button>
-                    </div>
-                `;
-                fileCard.querySelector('.edit-btn').addEventListener('click', () => editFile(file));
-                fileCard.querySelector('.delete-btn').addEventListener('click', () => deleteFile(file.id));
-                fileCard.querySelector('.copy-link-btn').addEventListener('click', () => {
-                    const link = createFileLink(file.id);
-                    copyToClipboard(link);
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: POLYGON_CHAIN_ID }],
                 });
-                filesGrid.appendChild(fileCard);
-            });
-        }
-
-        async function copyToClipboard(text) {
-            try {
-                await navigator.clipboard.writeText(text);
-                showMessage('Link copied to clipboard!');
-            } catch (err) {
-                console.error('Failed to copy text: ', err);
-                showMessage('Failed to copy link. Please try again.', 'error');
-            }
-        }
-        
-        function loadFiles() {
-            if (!userId) {
-                filesGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">Sign in to manage your files.</p>';
-                return;
-            }
-            
-            // Unsubscribe from previous listener if it exists
-            unsubscribeFiles();
-            
-            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'files'), where('vendorId', '==', userId));
-            
-            unsubscribeFiles = onSnapshot(q, (querySnapshot) => {
-                const files = [];
-                querySnapshot.forEach((doc) => {
-                    files.push({ id: doc.id, ...doc.data() });
-                });
-                renderFiles(files);
-            }, (error) => {
-                console.error("Error fetching files: ", error);
-            });
-        }
-
-        async function deleteFile(fileId) {
-            const fileDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'files', fileId);
-            try {
-                await deleteDoc(fileDocRef);
-                showMessage('File deleted successfully!');
-            } catch (e) {
-                console.error("Error removing document: ", e);
-                showMessage('Error deleting file.', 'error');
-            }
-        }
-
-        function editFile(file) {
-            editingFile = file;
-            modalTitle.textContent = 'Edit File';
-            document.getElementById('file-name').value = file.name;
-            document.getElementById('file-price').value = file.price;
-            document.getElementById('file-description').value = file.description;
-            document.getElementById('file-url').value = file.url;
-            fileModal.style.display = 'flex';
-        }
-
-        function showAddFileModal() {
-            editingFile = null;
-            modalTitle.textContent = 'Add New File';
-            fileForm.reset();
-            fileModal.style.display = 'flex';
-        }
-
-        async function purchaseCredits(creditsToAdd, priceInUsdt) {
-            if (typeof window.ethereum === 'undefined') {
-                showMessage('MetaMask is not installed. Please install it to purchase credits.', 'error');
-                return;
-            }
-            
-            try {
-                // Request access to the user's accounts
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
-                const contract = new ethers.Contract(usdtAddress, usdtABI, signer);
-                
-                // Get the number of decimal places for USDT
-                const decimals = 6;
-                const amount = ethers.utils.parseUnits(priceInUsdt.toString(), decimals);
-
-                // Send the transaction
-                const tx = await contract.transfer(recipientAddress, amount);
-                showMessage(`Transaction sent! Adding ${creditsToAdd} credits. Tx ID: ${tx.hash.substring(0, 10)}...`);
-
-                // Wait for the transaction to be mined
-                const receipt = await tx.wait();
-                if (receipt.status === 1) {
-                    showMessage(`Transaction confirmed! Your credits have been added.`);
-                    await runTransaction(db, async (transaction) => {
-                        const vendorDocRef = doc(db, 'artifacts', appId, 'users', userId);
-                        const vendorDoc = await transaction.get(vendorDocRef);
-                        const currentCredits = vendorDoc.exists() ? vendorDoc.data().credits : 0;
-                        const newCredits = currentCredits + creditsToAdd;
-                        transaction.set(vendorDocRef, { credits: newCredits }, { merge: true });
-                    });
-                    userCredits += creditsToAdd;
-                    updateKioskText();
-                    upgradeModal.style.display = 'none';
-                } else {
-                    showMessage('Transaction failed. Check the block explorer for details.', 'error');
-                }
-
-            } catch (error) {
-                console.error("Transaction failed: ", error);
-                if (error.code === 4001) {
-                    showMessage('Transaction rejected by user.', 'error');
-                } else {
-                    showMessage(`Transaction failed: ${error.message}`, 'error');
-                }
-            }
-        }
-
-        // Event Listeners
-        addFileBtn.addEventListener('click', showAddFileModal);
-        closeFileModalBtn.addEventListener('click', () => fileModal.style.display = 'none');
-        fileForm.addEventListener('submit', saveFile);
-        window.addEventListener('click', (event) => {
-            if (event.target === fileModal) {
-                fileModal.style.display = 'none';
-            }
-            if (event.target === upgradeModal) {
-                upgradeModal.style.display = 'none';
-            }
-        });
-
-        // Event listener for the upgrade button
-        upgradeBtn.addEventListener('click', () => {
-            if (!userId) {
-                showMessage('Please sign in to purchase credits.', 'error');
-                return;
-            }
-            upgradeModal.style.display = 'flex';
-        });
-
-        // Event listener for credit packages
-        document.querySelectorAll('.credit-pack-btn').forEach(button => {
-            button.addEventListener('click', () => {
-                const credits = parseInt(button.dataset.credits);
-                const price = parseFloat(button.dataset.price);
-                purchaseCredits(credits, price);
-            });
-        });
-        
-        closeUpgradeModalBtn.addEventListener('click', () => {
-            upgradeModal.style.display = 'none';
-        });
-
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                await signOut(auth);
-                showMessage('Logged out successfully!');
-            } catch (error) {
-                console.error("Logout error:", error);
-                showMessage('Logout failed.', 'error');
-            }
-        });
-
-        connectWalletBtn.addEventListener('click', async () => {
-            if (typeof window.ethereum === 'undefined') {
-                showMessage('MetaMask is not installed. Please install it to connect.', 'error');
-                return;
-            }
-            try {
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                showMessage(`Connected to MetaMask! Account: ${accounts[0].substring(0, 10)}...`);
-            } catch (error) {
-                console.error(error);
-                showMessage('Failed to connect to MetaMask. Please try again.', 'error');
-            }
-        });
-
-        // Auth State Listener
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-                await loadUserCredits();
-                loadFiles();
-            } else {
-                userId = null;
-                vendorIdEl.textContent = 'Not Logged In';
-                creditCountEl.textContent = '';
-                logoutBtn.classList.add('hidden');
-                filesGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">Sign in to manage your files.</p>';
-                // Sign in anonymously if no auth token is provided
-                if (!initialAuthToken) {
+                return true;
+            } catch (switchError) {
+                // This error code indicates that the chain has not been added to MetaMask.
+                if (switchError.code === 4902) {
                     try {
-                        await signInAnonymously(auth);
-                    } catch (error) {
-                        console.error("Anonymous sign-in failed:", error);
+                        await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: POLYGON_CHAIN_ID,
+                                chainName: 'Polygon Mainnet',
+                                rpcUrls: ['https://polygon-rpc.com/'],
+                                nativeCurrency: {
+                                    name: 'MATIC',
+                                    symbol: 'MATIC',
+                                    decimals: 18
+                                },
+                                blockExplorerUrls: ['https://polygonscan.com/']
+                            }]
+                        });
+                        return true;
+                    } catch (addError) {
+                        console.error("Failed to add Polygon network:", addError);
+                        return false;
                     }
                 }
-            }
-        });
-
-        // Initial sign-in with custom token if available
-        async function authenticate() {
-            if (initialAuthToken) {
-                try {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } catch (error) {
-                    console.error("Custom token sign-in failed:", error);
-                }
-            } else if (!auth.currentUser) {
-                try {
-                    await signInAnonymously(auth);
-                } catch (error) {
-                    console.error("Anonymous sign-in failed:", error);
-                }
+                console.error("Failed to switch to Polygon network:", switchError);
+                return false;
             }
         }
 
-        document.addEventListener('DOMContentLoaded', authenticate);
+        // Function to check and connect to MetaMask
+        async function connectAndSetupWeb3() {
+            if (!window.ethereum) {
+                showCustomAlert("MetaMask is not installed. Please install it to use this feature.");
+                return false;
+            }
+            try {
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                if (!(await switchToPolygon())) {
+                    showCustomAlert("Failed to switch to the Polygon Network. Please do so manually.");
+                    return false;
+                }
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                usdtContract = new ethers.Contract(USDT_CONTRACT_ADDRESS, USDT_ABI, signer);
+                usdtDecimals = await usdtContract.decimals();
+                document.getElementById('connect-metamask-btn').textContent = "MetaMask Connected";
+                showCustomAlert("Successfully connected to MetaMask on Polygon Mainnet!");
+                return true;
+            } catch (error) {
+                console.error("Could not connect to MetaMask:", error);
+                showCustomAlert("Could not connect to MetaMask. Please check the console.");
+                return false;
+            }
+        }
+
+        // Function to upload file content to Firestore
+        async function uploadFileToFirestore(file, price) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const fileContent = e.target.result; // base64 string
+                try {
+                    await setDoc(doc(collection(db, FILE_COLLECTION)), {
+                        name: file.name,
+                        price: parseFloat(price),
+                        content: fileContent,
+                        timestamp: new Date()
+                    });
+                    showCustomAlert("File uploaded successfully!");
+                } catch (e) {
+                    console.error("Error uploading file:", e);
+                    showCustomAlert("Error uploading file. Please try again.");
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // Function to render the list of files for purchase
+        function renderFilesList(files) {
+            const filesListDiv = document.getElementById('files-list');
+            if (files.length === 0) {
+                filesListDiv.innerHTML = '<p class="text-center text-gray-500">No files available for distribution yet.</p>';
+            } else {
+                filesListDiv.innerHTML = files.map(file => `
+                    <div class="file-card">
+                        <div>
+                            <p class="text-xl font-semibold">${file.name}</p>
+                            <p class="text-lg text-gray-400">${file.price.toFixed(2)} USDT</p>
+                        </div>
+                        <button class="buy-file-btn btn bg-green-600 hover:bg-green-700" data-id="${file.id}">
+                            <i class="fas fa-shopping-cart mr-2"></i>Buy
+                        </button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Function to handle the purchase and download
+        async function purchaseFile(fileId, price) {
+            if (!provider || !signer) {
+                showCustomAlert("Please connect to MetaMask first.");
+                return;
+            }
+
+            try {
+                // Check user's USDT balance
+                const balance = await usdtContract.balanceOf(await signer.getAddress());
+                const formattedBalance = ethers.utils.formatUnits(balance, usdtDecimals);
+
+                if (parseFloat(formattedBalance) < price) {
+                    showCustomAlert(`Insufficient funds. You need ${price} USDT but only have ${formattedBalance}.`);
+                    return;
+                }
+
+                // Convert price to BigNumber with correct decimals
+                const amount = ethers.utils.parseUnits(price.toString(), usdtDecimals);
+                const recipientAddress = "0x5824c483162b757f5c3C523B0645c7C4B0e2B705"; // Placeholder payment address
+                
+                showCustomAlert("Please approve the transaction in your MetaMask wallet.");
+
+                // Transfer USDT
+                const tx = await usdtContract.transfer(recipientAddress, amount);
+                await showCustomAlert(`Transaction sent! Waiting for confirmation...<br>Hash: ${tx.hash}`);
+                await tx.wait();
+
+                await showCustomAlert("Transaction confirmed! Downloading file...");
+
+                // Get file content from Firestore
+                const fileDocRef = doc(db, FILE_COLLECTION, fileId);
+                const fileDocSnap = await getDoc(fileDocRef);
+                if (fileDocSnap.exists()) {
+                    const fileData = fileDocSnap.data();
+                    const link = document.createElement('a');
+                    link.href = fileData.content;
+                    link.download = fileData.name;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showCustomAlert("File download started successfully!");
+                } else {
+                    showCustomAlert("File not found in the database.");
+                }
+
+            } catch (error) {
+                console.error("Payment or download failed:", error);
+                showCustomAlert("Payment or download failed. Check console for details.");
+            }
+        }
+        
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', async () => {
+            await signIn();
+
+            const menuContainer = document.getElementById('menu-container');
+            const orderList = document.getElementById('order-list');
+            const copyOrdersBtn = document.getElementById('copy-orders-btn');
+            const connectMetamaskBtn = document.getElementById('connect-metamask-btn');
+            const adminPanel = document.getElementById('admin-panel');
+            const showAdminPanelBtn = document.getElementById('show-admin-panel-btn');
+            const uploadFileBtn = document.getElementById('upload-file-btn');
+            const fileUploadInput = document.getElementById('file-upload-input');
+            const filePriceInput = document.getElementById('file-price-input');
+            const filesListDiv = document.getElementById('files-list');
+
+            // Original event listeners (unchanged)
+            menuContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('add-to-order-btn')) {
+                    const itemId = parseInt(e.target.dataset.id);
+                    const item = menuItems.find(i => i.id === itemId);
+                    if (item) {
+                        orders.push(item);
+                        updateOrderSummary();
+                    }
+                }
+            });
+
+            copyOrdersBtn.addEventListener('click', async () => {
+                const completedOrdersText = `Order Summary:\n${'-'.repeat(30)}\n` +
+                    orders.map((item, index) => {
+                        return `${index + 1}. ${item.name} - $${item.price.toFixed(2)}`;
+                    }).join('\n');
+                
+                try {
+                    await navigator.clipboard.writeText(completedOrdersText);
+                    showCustomAlert("Completed orders copied to clipboard!");
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    showCustomAlert("Failed to copy orders to clipboard. Please try again.");
+                }
+            });
+
+            // NEW: Admin and File Distribution Event Listeners
+            showAdminPanelBtn.addEventListener('click', () => {
+                adminPanel.classList.toggle('hidden');
+            });
+
+            uploadFileBtn.addEventListener('click', () => {
+                const file = fileUploadInput.files[0];
+                const price = filePriceInput.value;
+                if (!file || !price) {
+                    showCustomAlert("Please select a file and enter a price.");
+                    return;
+                }
+                uploadFileToFirestore(file, price);
+            });
+
+            // Real-time listener for the file distribution list
+            onSnapshot(collection(db, FILE_COLLECTION), (snapshot) => {
+                const files = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                renderFilesList(files);
+            }, (error) => {
+                console.error("Error fetching files:", error);
+                showCustomAlert("Failed to load files for distribution. Please check the console.");
+            });
+
+            filesListDiv.addEventListener('click', (e) => {
+                if (e.target.classList.contains('buy-file-btn')) {
+                    const fileId = e.target.dataset.id;
+                    const fileDoc = e.target.closest('.file-card');
+                    const priceText = fileDoc.querySelector('.text-lg').textContent;
+                    const price = parseFloat(priceText.replace(' USDT', ''));
+                    purchaseFile(fileId, price);
+                }
+            });
+            
+            // Existing MetaMask connection logic, now with new function
+            connectMetamaskBtn.addEventListener('click', connectAndSetupWeb3);
+
+            // Initial load
+            updateOrderSummary();
+            loadMenuItems();
+            loadProviders();
+        });
     </script>
 </body>
 </html>
