@@ -3,356 +3,600 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web3 Storefront</title>
+    <title>My Web 2.5 File Distributor</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, onSnapshot, collection, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Firebase global variables
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
-        
-        // Initialize Firebase
-        let app, db, auth;
-        if (Object.keys(firebaseConfig).length > 0) {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            setLogLevel('debug');
-        } else {
-            console.error("Firebase config is missing.");
-        }
-        let userId = null;
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const productContainer = document.getElementById('product-container');
-            const adminPanel = document.getElementById('admin-panel');
-            const addProductForm = document.getElementById('add-product-form');
-            const connectMetamaskBtn = document.getElementById('connect-metamask-btn');
-            const userWalletDiv = document.getElementById('user-wallet');
-            const adminPanelBtn = document.getElementById('admin-panel-btn');
-            const logoutBtn = document.getElementById('logout-btn');
-            const backToUserBtn = document.getElementById('back-to-user-btn');
-            const mainContainer = document.getElementById('main-container');
-            const loginContainer = document.getElementById('login-container');
-            const modal = document.getElementById('modal');
-            const closeModalBtn = document.getElementById('close-modal');
-            const modalMessage = document.getElementById('modal-message');
-            const loginForm = document.getElementById('login-form');
-            const loginEmailInput = document.getElementById('login-email');
-            const loginPasswordInput = document.getElementById('login-password');
-            let isAuthReady = false;
-
-            // Modal utility functions
-            function showModal(message) {
-                modalMessage.textContent = message;
-                modal.classList.remove('hidden');
-            }
-
-            closeModalBtn.addEventListener('click', () => {
-                modal.classList.add('hidden');
-            });
-
-            // Authentication logic
-            if (auth) {
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        userWalletDiv.textContent = `User ID: ${userId}`;
-                        
-                        let isAdmin = false;
-                        try {
-                            const rolesRef = doc(db, `artifacts/${appId}/public/data/roles`, userId);
-                            const rolesDoc = await getDoc(rolesRef);
-                            isAdmin = rolesDoc.exists();
-                        } catch (e) {
-                            console.error("Error fetching user role:", e);
-                            showModal("Error checking user permissions. Please check the console.");
-                        }
-
-                        if (isAdmin) {
-                            adminPanelBtn.classList.remove('hidden');
-                            logoutBtn.classList.remove('hidden');
-                        } else {
-                            adminPanelBtn.classList.add('hidden');
-                            logoutBtn.classList.add('hidden');
-                        }
-
-                        loginContainer.classList.add('hidden');
-                        mainContainer.classList.remove('hidden');
-                        isAuthReady = true;
-                    } else {
-                        userId = null;
-                        userWalletDiv.textContent = "Please Login or Connect Wallet";
-                        loginContainer.classList.remove('hidden');
-                        mainContainer.classList.add('hidden');
-                        adminPanelBtn.classList.add('hidden');
-                        logoutBtn.classList.add('hidden');
-                        isAuthReady = true;
-                    }
-                });
-            }
-
-            // Login form handler
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = loginEmailInput.value;
-                const password = loginPasswordInput.value;
-
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                    // onAuthStateChanged will handle the UI update
-                } catch (error) {
-                    console.error("Login error:", error);
-                    showModal(`Login failed: ${error.message}`);
-                }
-            });
-
-            // Logout handler
-            logoutBtn.addEventListener('click', async () => {
-                try {
-                    await signOut(auth);
-                    showModal("Logged out successfully.");
-                } catch (error) {
-                    console.error("Logout error:", error);
-                    showModal("Logout failed. Please try again.");
-                }
-            });
-
-            // MetaMask connection
-            let userAddress = null;
-            connectMetamaskBtn.addEventListener('click', async () => {
-                if (window.ethereum) {
-                    try {
-                        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                        userAddress = accounts[0];
-                        userWalletDiv.textContent = `User Address: ${userAddress}`;
-                        showModal("Successfully connected to MetaMask!");
-                    } catch (error) {
-                        console.error(error);
-                        showModal("Could not connect to MetaMask. Please check the console for details.");
-                    }
-                } else {
-                    showModal("MetaMask is not installed. Please install it to use this feature.");
-                }
-            });
-
-            // Render products on the user frontend
-            function renderProducts(products) {
-                productContainer.innerHTML = '';
-                if (products.length === 0) {
-                    productContainer.innerHTML = '<p class="text-center text-gray-400">No products available. Please add some from the admin panel.</p>';
-                }
-                products.forEach(product => {
-                    const productCard = document.createElement('div');
-                    productCard.className = 'bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col items-center text-center';
-                    productCard.innerHTML = `
-                        <h2 class="text-xl font-bold text-white mb-2">${product.name}</h2>
-                        <p class="text-gray-400 mb-4">${product.description}</p>
-                        <p class="text-lg font-semibold text-green-400 mb-4">$${parseFloat(product.price).toFixed(2)} USDT</p>
-                        <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-40 object-cover rounded-md mb-4 onerror="this.onerror=null;this.src='https://placehold.co/400x200/2d3748/a0aec0?text=Image+Not+Found';" />
-                        <button class="buy-btn bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full transition-colors w-full" data-id="${product.id}" data-price="${product.price}">Buy Now</button>
-                    `;
-                    productContainer.appendChild(productCard);
-                });
-
-                document.querySelectorAll('.buy-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const price = parseFloat(e.target.dataset.price);
-                        handlePurchase(price);
-                    });
-                });
-            }
-
-            // Handle simulated purchase
-            async function handlePurchase(price) {
-                if (!userAddress) {
-                    showModal("Please connect your MetaMask wallet first.");
-                    return;
-                }
-                
-                // Simulate very small transfers with the platform fee
-                const platformFee = 0.000000000000001;
-                const totalAmount = price + platformFee;
-                
-                const message = `Simulating a purchase of $${price.toFixed(2)} USDT with a platform fee of $${platformFee.toFixed(15)} USDT. Total: $${totalAmount.toFixed(15)} USDT. This transaction would be sent to a smart contract to distribute funds.`;
-                showModal(message);
-            }
-
-            // Admin panel functionality
-            adminPanelBtn.addEventListener('click', () => {
-                mainContainer.classList.add('hidden');
-                adminPanel.classList.remove('hidden');
-            });
-
-            backToUserBtn.addEventListener('click', () => {
-                adminPanel.classList.add('hidden');
-                mainContainer.classList.remove('hidden');
-            });
-
-            addProductForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const name = document.getElementById('product-name').value;
-                const description = document.getElementById('product-description').value;
-                const price = parseFloat(document.getElementById('product-price').value);
-                const imageUrl = document.getElementById('product-image-url').value;
-
-                if (isNaN(price)) {
-                    showModal("Please enter a valid price.");
-                    return;
-                }
-
-                if (db) {
-                    try {
-                        const productsCollection = collection(db, `artifacts/${appId}/public/data/products`);
-                        await addDoc(productsCollection, { name, description, price, imageUrl });
-                        showModal("Product added successfully!");
-                        addProductForm.reset();
-                    } catch (e) {
-                        console.error("Error adding document: ", e);
-                        showModal("Error adding product. Please check the console.");
-                    }
-                } else {
-                    showModal("Firebase is not initialized. Cannot add product.");
-                }
-            });
-
-            // Initial view based on login state
-            if (db) {
-                 onSnapshot(collection(db, `artifacts/${appId}/public/data/products`), (snapshot) => {
-                    const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    renderProducts(products);
-                });
-            } else {
-                 showModal("Firebase is not configured. Product data will not be persisted.");
-            }
-        });
-    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
     <style>
+        /* General body styling */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #111827;
-            color: #d1d5db;
+            background-color: #1a202c; /* Dark slate background */
+            color: #e2e8f0; /* Light gray text */
         }
+        /* Main container styling */
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 1.5rem;
         }
-        .rounded-lg {
+        /* Kiosk menu item card styling */
+        .menu-item-card {
+            background-color: #2d3748; /* Darker gray for cards */
             border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease-in-out;
         }
-        .shadow-lg {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        .menu-item-card:hover {
+            transform: translateY(-5px);
         }
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border-radius: 9999px;
-            font-weight: 700;
-            transition: background-color 0.2s;
-        }
-        .btn-purple {
-            background-color: #9333ea;
-            color: white;
-        }
-        .btn-purple:hover {
-            background-color: #7e22ce;
-        }
-        .input-field {
+        /* Modal and modal content styling */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
             width: 100%;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            border: 1px solid #374151;
-            background-color: #1f2937;
-            color: #f3f4f6;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
         }
-        .input-field:focus {
-            outline: none;
-            border-color: #9333ea;
-            box-shadow: 0 0 0 2px rgba(147, 51, 234, 0.5);
+        .modal-content {
+            background-color: #2d3748;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            animation: fadeIn 0.3s ease-out;
         }
-        .product-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 2rem;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .close-btn {
+            color: #e2e8f0;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+        }
+        .close-btn:hover {
+            color: #ffffff;
+        }
+        /* Custom alert/message box */
+        #custom-message-box {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
+            display: none;
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-300">
-    <div id="login-container" class="container hidden flex flex-col items-center justify-center min-h-screen">
-        <h1 class="text-4xl font-extrabold text-white mb-6">Admin Login</h1>
-        <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-sm">
-            <form id="login-form" class="space-y-4">
-                <div>
-                    <label for="login-email" class="block text-sm font-medium text-gray-400">Email</label>
-                    <input type="email" id="login-email" required class="mt-1 input-field">
+<body>
+    <div class="container">
+        <header class="flex justify-between items-center py-6 border-b border-gray-700">
+            <h1 class="text-4xl font-bold tracking-tight">File Distributor Kiosk</h1>
+            <div class="space-x-4 flex items-center">
+                <div id="vendor-info" class="bg-gray-700 rounded-lg p-3 text-sm flex items-center space-x-2">
+                    <i class="fas fa-user-circle text-gray-400"></i>
+                    <span id="vendor-id">Loading...</span>
+                    <span id="credit-count" class="ml-2 font-semibold"></span>
+                    <button id="upgrade-btn" class="ml-4 px-4 py-1 bg-green-500 hover:bg-green-600 text-white rounded-full text-xs font-bold transition-colors">
+                        Upgrade
+                    </button>
                 </div>
-                <div>
-                    <label for="login-password" class="block text-sm font-medium text-gray-400">Password</label>
-                    <input type="password" id="login-password" required class="mt-1 input-field">
-                </div>
-                <button type="submit" class="btn btn-purple w-full">Log In</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="main-container" class="container hidden">
-        <header class="flex justify-between items-center mb-8">
-            <h1 class="text-4xl font-extrabold text-white">Web3 Store</h1>
-            <div class="flex items-center space-x-4">
-                <div id="user-wallet" class="bg-gray-800 text-sm px-4 py-2 rounded-full">Not Logged In</div>
-                <button id="connect-metamask-btn" class="btn btn-purple">Connect MetaMask</button>
-                <button id="admin-panel-btn" class="btn btn-purple hidden">Admin Panel</button>
-                <button id="logout-btn" class="btn bg-red-600 hover:bg-red-700 text-white hidden">Logout</button>
+                <button id="connect-metamask-btn" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold rounded-lg transition-colors">
+                    <i class="fas fa-wallet"></i> Connect Wallet
+                </button>
+                <button id="logout-btn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition-colors hidden">
+                    Logout
+                </button>
             </div>
         </header>
-        <div class="text-center mb-8">
-            <h2 class="text-3xl font-bold text-white mb-2">Our Products</h2>
-            <p class="text-lg text-gray-400">Explore our selection of digital goods</p>
-        </div>
-        <div id="product-container" class="product-grid">
-            <!-- Products will be rendered here -->
-        </div>
+
+        <section id="vendor-dashboard" class="py-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold">Your Files</h2>
+                <div class="flex items-center space-x-2">
+                    <button id="add-file-btn" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-colors">
+                        <i class="fas fa-plus-circle"></i> Add New File
+                    </button>
+                    <button id="copy-completed-orders-btn" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-colors">
+                        <i class="fas fa-clipboard-list"></i> Copy Completed Orders
+                    </button>
+                </div>
+            </div>
+            
+            <div id="files-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Files will be rendered here -->
+            </div>
+        </section>
     </div>
 
-    <div id="admin-panel" class="container hidden">
-        <header class="flex justify-between items-center mb-8">
-            <h1 class="text-4xl font-extrabold text-white">Admin Panel</h1>
-            <button id="back-to-user-btn" class="btn btn-purple">Back to Storefront</button>
-        </header>
-        <div class="bg-gray-800 p-8 rounded-lg shadow-lg">
-            <h2 class="text-2xl font-bold text-white mb-6">Add New Product</h2>
-            <form id="add-product-form" class="space-y-4">
+    <!-- The Modal for adding/editing files -->
+    <div id="fileModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3 id="modal-title" class="text-2xl font-bold mb-4">Add New File</h3>
+            <form id="file-form" class="space-y-4">
                 <div>
-                    <label for="product-name" class="block text-sm font-medium text-gray-400">Product Name</label>
-                    <input type="text" id="product-name" required class="mt-1 input-field">
+                    <label for="file-name" class="block text-left mb-1">File Name</label>
+                    <input type="text" id="file-name" class="w-full px-4 py-2 rounded-md bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500" required>
                 </div>
                 <div>
-                    <label for="product-description" class="block text-sm font-medium text-gray-400">Description</label>
-                    <textarea id="product-description" rows="3" required class="mt-1 input-field"></textarea>
+                    <label for="file-price" class="block text-left mb-1">Price in USDT</label>
+                    <input type="number" id="file-price" step="0.01" class="w-full px-4 py-2 rounded-md bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500" required>
                 </div>
                 <div>
-                    <label for="product-price" class="block text-sm font-medium text-gray-400">Price (USDT)</label>
-                    <input type="number" id="product-price" step="0.01" required class="mt-1 input-field">
+                    <label for="file-description" class="block text-left mb-1">Description</label>
+                    <textarea id="file-description" rows="3" class="w-full px-4 py-2 rounded-md bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500" required></textarea>
                 </div>
                 <div>
-                    <label for="product-image-url" class="block text-sm font-medium text-gray-400">Image URL</label>
-                    <input type="text" id="product-image-url" required class="mt-1 input-field">
+                    <label for="file-url" class="block text-left mb-1">File URL</label>
+                    <input type="url" id="file-url" class="w-full px-4 py-2 rounded-md bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500" required>
                 </div>
-                <button type="submit" class="btn btn-purple w-full">Add Product</button>
+                <button type="submit" class="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors">Save File</button>
             </form>
         </div>
     </div>
 
-    <!-- Modal for messages -->
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden">
-        <div class="bg-gray-800 p-8 rounded-lg shadow-2xl max-w-sm w-full text-center">
-            <p id="modal-message" class="text-lg text-white mb-6"></p>
-            <button id="close-modal" class="btn btn-purple">Close</button>
+    <!-- The Modal for credit purchase -->
+    <div id="upgradeModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="close-upgrade-modal">&times;</span>
+            <h3 class="text-2xl font-bold mb-6">Purchase Credits</h3>
+            <p class="text-gray-400 mb-6">Select a credit package to purchase. Payments are processed via your MetaMask wallet using USDT on the Polygon network.</p>
+            <div class="space-y-4">
+                <button class="w-full px-4 py-4 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex justify-between items-center text-left credit-pack-btn" data-credits="10" data-price="2.50">
+                    <div>
+                        <span class="text-lg font-bold">10 Credits</span>
+                        <p class="text-gray-400 text-sm">A great start for new vendors.</p>
+                    </div>
+                    <span class="text-green-400 text-xl font-bold">2.50 USDT</span>
+                </button>
+                <button class="w-full px-4 py-4 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex justify-between items-center text-left credit-pack-btn" data-credits="50" data-price="10.00">
+                    <div>
+                        <span class="text-lg font-bold">50 Credits</span>
+                        <p class="text-gray-400 text-sm">Best value for your money.</p>
+                    </div>
+                    <span class="text-green-400 text-xl font-bold">10.00 USDT</span>
+                </button>
+                <button class="w-full px-4 py-4 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex justify-between items-center text-left credit-pack-btn" data-credits="150" data-price="25.00">
+                    <div>
+                        <span class="text-lg font-bold">150 Credits</span>
+                        <p class="text-gray-400 text-sm">For the professional vendor.</p>
+                    </div>
+                    <span class="text-green-400 text-xl font-bold">25.00 USDT</span>
+                </button>
+            </div>
         </div>
     </div>
+    
+    <!-- The Modal for general messages -->
+    <div id="custom-message-box"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, runTransaction, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // IMPORTANT: Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        setLogLevel('debug'); // Enable Firestore logging
+
+        let userId = null;
+        let unsubscribeFiles = () => {};
+        let userCredits = 0;
+
+        // UI Elements
+        const filesGrid = document.getElementById('files-grid');
+        const vendorIdEl = document.getElementById('vendor-id');
+        const creditCountEl = document.getElementById('credit-count');
+        const upgradeBtn = document.getElementById('upgrade-btn');
+        const addFileBtn = document.getElementById('add-file-btn');
+        const connectWalletBtn = document.getElementById('connect-metamask-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const copyCompletedOrdersBtn = document.getElementById('copy-completed-orders-btn');
+        const fileModal = document.getElementById('fileModal');
+        const upgradeModal = document.getElementById('upgradeModal');
+        const modalTitle = document.getElementById('modal-title');
+        const closeFileModalBtn = document.querySelector('#fileModal .close-btn');
+        const closeUpgradeModalBtn = document.querySelector('#upgradeModal .close-btn');
+        const fileForm = document.getElementById('file-form');
+        const customMessageBox = document.getElementById('custom-message-box');
+        
+        // Modal state
+        let editingFile = null;
+
+        // ERC20 token contract details (USDT on Polygon Mainnet)
+        const usdtAddress = "0xc2132D05D31c914a87C66112d7c6530aF126eE1a"; // USDT contract on Polygon Mainnet
+        const recipientAddress = "0x8920E775d7A25C74b423192087c5E21e0B59E273"; // Your wallet address
+        const usdtABI = [
+            "function transfer(address to, uint256 amount)"
+        ];
+
+        function showMessage(message, type = 'success') {
+            customMessageBox.textContent = message;
+            customMessageBox.style.backgroundColor = type === 'success' ? '#4CAF50' : '#f44336';
+            customMessageBox.style.display = 'block';
+            setTimeout(() => {
+                customMessageBox.style.display = 'none';
+            }, 3000);
+        }
+
+        function createFileLink(fileId) {
+            const url = new URL(window.location.origin);
+            url.searchParams.append('vendorId', userId);
+            url.searchParams.append('fileId', fileId);
+            url.pathname = '/kiosk.html';
+            return url.toString();
+        }
+
+        function updateKioskText() {
+            if (userId) {
+                vendorIdEl.textContent = userId.substring(0, 8) + '...';
+                creditCountEl.textContent = `Credits: ${userCredits}`;
+                logoutBtn.classList.remove('hidden');
+            } else {
+                vendorIdEl.textContent = 'Not Logged In';
+                creditCountEl.textContent = '';
+                logoutBtn.classList.add('hidden');
+            }
+        }
+
+        async function loadUserCredits() {
+            if (!userId) return;
+            const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
+            try {
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    userCredits = userDocSnap.data().credits || 0;
+                } else {
+                    // Initialize user document with 5 free credits
+                    await setDoc(userDocRef, { credits: 5 });
+                    userCredits = 5;
+                }
+                updateKioskText();
+            } catch (e) {
+                console.error("Error loading user credits: ", e);
+            }
+        }
+
+        async function saveFile(event) {
+            event.preventDefault();
+
+            const fileName = document.getElementById('file-name').value;
+            const filePrice = parseFloat(document.getElementById('file-price').value);
+            const fileDescription = document.getElementById('file-description').value;
+            const fileUrl = document.getElementById('file-url').value;
+
+            if (userCredits <= 0) {
+                showMessage('You need more credits to add a file. Please upgrade your plan.', 'error');
+                return;
+            }
+            
+            const filesCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'files');
+            const newFile = {
+                name: fileName,
+                price: filePrice,
+                description: fileDescription,
+                url: fileUrl,
+                vendorId: userId,
+                timestamp: new Date()
+            };
+
+            try {
+                if (editingFile) {
+                    const fileDocRef = doc(filesCollectionRef, editingFile.id);
+                    await runTransaction(db, async (transaction) => {
+                        const vendorDocRef = doc(db, 'artifacts', appId, 'users', userId);
+                        const vendorDoc = await transaction.get(vendorDocRef);
+                        // For editing, we don't decrement credits.
+                        transaction.update(fileDocRef, newFile);
+                    });
+                    showMessage('File updated successfully!');
+                } else {
+                    await runTransaction(db, async (transaction) => {
+                        const vendorDocRef = doc(db, 'artifacts', appId, 'users', userId);
+                        const vendorDoc = await transaction.get(vendorDocRef);
+                        const currentCredits = vendorDoc.data().credits;
+                        if (currentCredits <= 0) {
+                            throw new Error("Not enough credits");
+                        }
+                        const newDocRef = doc(filesCollectionRef);
+                        transaction.set(newDocRef, newFile);
+                        transaction.update(vendorDocRef, { credits: currentCredits - 1 });
+                    });
+                    userCredits--;
+                    updateKioskText();
+                    showMessage('File created successfully! 1 credit was used.');
+                }
+                fileModal.style.display = 'none';
+            } catch (e) {
+                console.error("Transaction failed: ", e);
+                showMessage(`Error saving file: ${e.message}`, 'error');
+            }
+        }
+
+        function renderFiles(files) {
+            filesGrid.innerHTML = '';
+            if (files.length === 0) {
+                filesGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">No files found. Add a new one to get started!</p>';
+                return;
+            }
+
+            files.forEach(file => {
+                const fileCard = document.createElement('div');
+                fileCard.className = 'menu-item-card flex flex-col items-center p-6 space-y-4';
+                fileCard.innerHTML = `
+                    <div class="w-36 h-36 flex items-center justify-center text-6xl text-blue-400 bg-gray-700 rounded-full">
+                        <i class="fas fa-file"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-center">${file.name}</h3>
+                    <p class="text-center text-gray-400">${file.description}</p>
+                    <span class="text-2xl font-bold text-green-400">$${file.price.toFixed(2)} USDT</span>
+                    <div class="flex space-x-2 w-full">
+                        <button class="flex-1 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold rounded-lg transition-colors edit-btn">
+                            Edit
+                        </button>
+                        <button class="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition-colors delete-btn">
+                            Delete
+                        </button>
+                    </div>
+                    <div class="mt-4 flex flex-col items-center w-full">
+                        <p class="text-xs text-gray-500 mb-2">Distribution Link</p>
+                        <textarea class="w-full text-xs bg-gray-700 p-2 rounded-md border border-gray-600 text-gray-300 resize-none h-20" readonly>${createFileLink(file.id)}</textarea>
+                        <button class="mt-2 w-full px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded-lg transition-colors copy-link-btn">
+                            Copy Link <i class="fas fa-copy ml-1"></i>
+                        </button>
+                    </div>
+                `;
+                fileCard.querySelector('.edit-btn').addEventListener('click', () => editFile(file));
+                fileCard.querySelector('.delete-btn').addEventListener('click', () => deleteFile(file.id));
+                fileCard.querySelector('.copy-link-btn').addEventListener('click', () => {
+                    const link = createFileLink(file.id);
+                    copyToClipboard(link);
+                });
+                filesGrid.appendChild(fileCard);
+            });
+        }
+
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showMessage('Link copied to clipboard!');
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showMessage('Failed to copy link. Please try again.', 'error');
+            }
+        }
+        
+        function loadFiles() {
+            if (!userId) {
+                filesGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">Sign in to manage your files.</p>';
+                return;
+            }
+            
+            // Unsubscribe from previous listener if it exists
+            unsubscribeFiles();
+            
+            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'files'), where('vendorId', '==', userId));
+            
+            unsubscribeFiles = onSnapshot(q, (querySnapshot) => {
+                const files = [];
+                querySnapshot.forEach((doc) => {
+                    files.push({ id: doc.id, ...doc.data() });
+                });
+                renderFiles(files);
+            }, (error) => {
+                console.error("Error fetching files: ", error);
+            });
+        }
+
+        async function deleteFile(fileId) {
+            const fileDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'files', fileId);
+            try {
+                await deleteDoc(fileDocRef);
+                showMessage('File deleted successfully!');
+            } catch (e) {
+                console.error("Error removing document: ", e);
+                showMessage('Error deleting file.', 'error');
+            }
+        }
+
+        function editFile(file) {
+            editingFile = file;
+            modalTitle.textContent = 'Edit File';
+            document.getElementById('file-name').value = file.name;
+            document.getElementById('file-price').value = file.price;
+            document.getElementById('file-description').value = file.description;
+            document.getElementById('file-url').value = file.url;
+            fileModal.style.display = 'flex';
+        }
+
+        function showAddFileModal() {
+            editingFile = null;
+            modalTitle.textContent = 'Add New File';
+            fileForm.reset();
+            fileModal.style.display = 'flex';
+        }
+
+        async function purchaseCredits(creditsToAdd, priceInUsdt) {
+            if (typeof window.ethereum === 'undefined') {
+                showMessage('MetaMask is not installed. Please install it to purchase credits.', 'error');
+                return;
+            }
+            
+            try {
+                // Request access to the user's accounts
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+                const contract = new ethers.Contract(usdtAddress, usdtABI, signer);
+                
+                // Get the number of decimal places for USDT
+                const decimals = 6;
+                const amount = ethers.utils.parseUnits(priceInUsdt.toString(), decimals);
+
+                // Send the transaction
+                const tx = await contract.transfer(recipientAddress, amount);
+                showMessage(`Transaction sent! Adding ${creditsToAdd} credits. Tx ID: ${tx.hash.substring(0, 10)}...`);
+
+                // Wait for the transaction to be mined
+                const receipt = await tx.wait();
+                if (receipt.status === 1) {
+                    showMessage(`Transaction confirmed! Your credits have been added.`);
+                    await runTransaction(db, async (transaction) => {
+                        const vendorDocRef = doc(db, 'artifacts', appId, 'users', userId);
+                        const vendorDoc = await transaction.get(vendorDocRef);
+                        const currentCredits = vendorDoc.exists() ? vendorDoc.data().credits : 0;
+                        const newCredits = currentCredits + creditsToAdd;
+                        transaction.set(vendorDocRef, { credits: newCredits }, { merge: true });
+                    });
+                    userCredits += creditsToAdd;
+                    updateKioskText();
+                    upgradeModal.style.display = 'none';
+                } else {
+                    showMessage('Transaction failed. Check the block explorer for details.', 'error');
+                }
+
+            } catch (error) {
+                console.error("Transaction failed: ", error);
+                if (error.code === 4001) {
+                    showMessage('Transaction rejected by user.', 'error');
+                } else {
+                    showMessage(`Transaction failed: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Event Listeners
+        addFileBtn.addEventListener('click', showAddFileModal);
+        closeFileModalBtn.addEventListener('click', () => fileModal.style.display = 'none');
+        fileForm.addEventListener('submit', saveFile);
+        window.addEventListener('click', (event) => {
+            if (event.target === fileModal) {
+                fileModal.style.display = 'none';
+            }
+            if (event.target === upgradeModal) {
+                upgradeModal.style.display = 'none';
+            }
+        });
+
+        // Event listener for the upgrade button
+        upgradeBtn.addEventListener('click', () => {
+            if (!userId) {
+                showMessage('Please sign in to purchase credits.', 'error');
+                return;
+            }
+            upgradeModal.style.display = 'flex';
+        });
+
+        // Event listener for credit packages
+        document.querySelectorAll('.credit-pack-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const credits = parseInt(button.dataset.credits);
+                const price = parseFloat(button.dataset.price);
+                purchaseCredits(credits, price);
+            });
+        });
+        
+        closeUpgradeModalBtn.addEventListener('click', () => {
+            upgradeModal.style.display = 'none';
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                showMessage('Logged out successfully!');
+            } catch (error) {
+                console.error("Logout error:", error);
+                showMessage('Logout failed.', 'error');
+            }
+        });
+
+        connectWalletBtn.addEventListener('click', async () => {
+            if (typeof window.ethereum === 'undefined') {
+                showMessage('MetaMask is not installed. Please install it to connect.', 'error');
+                return;
+            }
+            try {
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                showMessage(`Connected to MetaMask! Account: ${accounts[0].substring(0, 10)}...`);
+            } catch (error) {
+                console.error(error);
+                showMessage('Failed to connect to MetaMask. Please try again.', 'error');
+            }
+        });
+
+        // Auth State Listener
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                await loadUserCredits();
+                loadFiles();
+            } else {
+                userId = null;
+                vendorIdEl.textContent = 'Not Logged In';
+                creditCountEl.textContent = '';
+                logoutBtn.classList.add('hidden');
+                filesGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">Sign in to manage your files.</p>';
+                // Sign in anonymously if no auth token is provided
+                if (!initialAuthToken) {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.error("Anonymous sign-in failed:", error);
+                    }
+                }
+            }
+        });
+
+        // Initial sign-in with custom token if available
+        async function authenticate() {
+            if (initialAuthToken) {
+                try {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } catch (error) {
+                    console.error("Custom token sign-in failed:", error);
+                }
+            } else if (!auth.currentUser) {
+                try {
+                    await signInAnonymously(auth);
+                } catch (error) {
+                    console.error("Anonymous sign-in failed:", error);
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', authenticate);
+    </script>
 </body>
 </html>
