@@ -19,33 +19,6 @@
             margin: 0 auto;
             padding: 1.5rem;
         }
-        /* Kiosk menu item card styling */
-        .menu-item-card {
-            background-color: #2d3748; /* Darker gray for cards */
-            border-radius: 0.75rem;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s ease-in-out;
-        }
-        .menu-item-card:hover {
-            transform: translateY(-5px);
-        }
-        /* Modal and modal content styling */
-        .modal {
-            background-color: rgba(0, 0, 0, 0.7);
-            z-index: 100;
-        }
-        .modal-content {
-            background-color: #2d3748;
-            border-radius: 0.75rem;
-        }
-        .close-button {
-            color: #e2e8f0;
-            transition: color 0.2s;
-        }
-        .close-button:hover {
-            color: #f56565;
-        }
         /* Button styling */
         .btn {
             background-color: #4c51bf;
@@ -87,12 +60,12 @@
 </head>
 <body class="bg-gray-800 text-gray-200 min-h-screen">
     <div class="container mx-auto py-8">
-        <!-- Main Kiosk Kiosk Section (existing) -->
+        <!-- Main App Header -->
         <h1 class="text-4xl font-bold text-center mb-6 text-gray-100">My Web 2.5 Kiosk</h1>
 
-        <!-- Kiosk Header with buttons -->
+        <!-- Header with buttons -->
         <div class="flex justify-between items-center mb-8 p-4 bg-gray-700 rounded-xl shadow-lg">
-            <h2 class="text-2xl font-semibold">Available Items</h2>
+            <h2 class="text-2xl font-semibold">File Distribution Hub</h2>
             <div class="flex space-x-4">
                 <button id="connect-metamask-btn" class="btn px-6 py-2">
                     <i class="fab fa-ethereum mr-2"></i>Connect MetaMask
@@ -103,7 +76,7 @@
             </div>
         </div>
 
-        <!-- Admin Panel Section (new) -->
+        <!-- Admin Panel Section -->
         <div id="admin-panel" class="distribution-section hidden">
             <h2 class="text-3xl font-semibold mb-4 text-center">Admin Panel</h2>
             <div class="mb-4">
@@ -131,46 +104,24 @@
                 <button id="upload-file-btn" class="btn w-full mt-6">
                     <i class="fas fa-upload mr-2"></i>Upload File
                 </button>
+                <div id="upload-link-container" class="mt-4 p-4 bg-gray-600 rounded-lg hidden">
+                    <p class="text-sm font-medium mb-2">Download Link Generated:</p>
+                    <input type="text" id="generated-link-input" class="w-full bg-gray-700 p-2 rounded-lg text-sm" readonly />
+                    <button id="copy-link-btn" class="btn mt-2 w-full bg-blue-600 hover:bg-blue-700">
+                        <i class="fas fa-copy mr-2"></i>Copy Link
+                    </button>
+                </div>
             </div>
         </div>
         
-        <!-- File Distribution Hub Section (new) -->
+        <!-- File Distribution Hub Section -->
         <div class="distribution-section">
-            <h2 class="text-3xl font-semibold mb-4 text-center">File Distribution Hub</h2>
+            <h2 class="text-3xl font-semibold mb-4 text-center">Available Files</h2>
             <p class="text-sm text-gray-400 mb-4 text-center">
                 Purchase files using USDT on the Polygon network.
             </p>
             <div id="files-list" class="space-y-4">
                 <!-- File items will be dynamically added here -->
-            </div>
-        </div>
-
-        <!-- The existing kiosk menu items from the original file -->
-        <div id="menu-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-            <!-- Menu items will be inserted here by JavaScript -->
-        </div>
-
-        <!-- Kiosk footer with order summary (existing) -->
-        <div id="order-summary-section" class="distribution-section">
-            <h2 class="text-3xl font-semibold mb-4 text-center">Order Summary</h2>
-            <div id="order-list" class="bg-gray-700 p-6 rounded-lg shadow-inner">
-                <!-- Order list will be updated here -->
-            </div>
-            <div class="flex justify-end mt-4">
-                <button id="copy-orders-btn" class="btn bg-purple-600 hover:bg-purple-700">
-                    <i class="fas fa-copy mr-2"></i>Copy Orders
-                </button>
-            </div>
-        </div>
-
-        <!-- Modal section (existing, for provider details) -->
-        <div id="myModal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
-            <div class="modal-content w-full max-w-lg p-6 relative">
-                <button id="closeModalBtn" class="close-button absolute top-3 right-3 text-2xl font-bold">&times;</button>
-                <h3 id="modal-title" class="text-2xl font-bold mb-4"></h3>
-                <p id="modal-address" class="text-sm mb-2"></p>
-                <p id="modal-description" class="text-md"></p>
-                <div id="modal-items-list" class="mt-4 space-y-2"></div>
             </div>
         </div>
 
@@ -189,7 +140,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
         
         // Ethers.js for blockchain interaction
         import { ethers } from "https://cdn.ethers.io/lib/ethers-5.2.esm.min.js";
@@ -218,11 +170,12 @@
         window.alert = showCustomAlert;
 
         // Firebase Initialization
-        let app, auth, db;
+        let app, auth, db, storage;
         try {
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
+            storage = getStorage(app);
             console.log("Firebase initialized successfully.");
         } catch (error) {
             console.error("Firebase initialization failed:", error);
@@ -248,70 +201,8 @@
                 showCustomAlert("Authentication failed. Some features may not be available.");
             }
         }
-
-        // Existing menu item data and functions (unchanged)
-        const menuItems = [
-            { id: 1, name: "Latte", price: 4.5, icon: "coffee" },
-            { id: 2, name: "Espresso", price: 3.0, icon: "coffee" },
-            { id: 3, name: "Croissant", price: 2.5, icon: "bread-slice" },
-            { id: 4, name: "Muffin", price: 3.5, icon: "muffin" },
-        ];
         
-        const providers = [
-            { id: "prov1", name: "Fresh Beans", description: "Your local coffee and pastry supplier.", address: "0x1A2bC3dE4f5gH6iJ7kL8mN9oP0qR1sT2uV3wX4yZ5" },
-            { id: "prov2", name: "Sweet Treats Co.", description: "Specialty desserts and muffins.", address: "0x6F7gH8iJ9kL0mN1oP2qR3sT4uV5wX6yZ7aB8c9D0e" },
-        ];
-        
-        let orders = [];
-
-        function renderMenuItem(item) {
-            return `
-                <div class="menu-item-card p-4 flex flex-col items-center">
-                    <i class="fas fa-${item.icon} text-4xl mb-4 text-purple-400"></i>
-                    <h3 class="text-xl font-bold">${item.name}</h3>
-                    <p class="text-lg font-semibold text-gray-300">$${item.price.toFixed(2)}</p>
-                    <button data-id="${item.id}" class="add-to-order-btn btn mt-4 w-full">Add to Order</button>
-                </div>
-            `;
-        }
-
-        function updateOrderSummary() {
-            const orderList = document.getElementById('order-list');
-            orderList.innerHTML = orders.length > 0
-                ? orders.map(order => `<p class="text-lg">${order.name} - $${order.price.toFixed(2)}</p>`).join('')
-                : '<p class="text-center text-gray-500">Your order list is empty.</p>';
-        }
-
-        function loadMenuItems() {
-            const menuContainer = document.getElementById('menu-container');
-            menuContainer.innerHTML = menuItems.map(renderMenuItem).join('');
-        }
-        
-        function loadProviders() {
-            const providersContainer = document.getElementById('providers-list');
-            if (providersContainer) {
-                providersContainer.innerHTML = providers.map(p => `
-                    <div class="p-4 bg-gray-600 rounded-lg provider-card cursor-pointer" data-id="${p.id}">
-                        <h4 class="font-semibold text-lg">${p.name}</h4>
-                        <p class="text-sm text-gray-400">Click for details</p>
-                    </div>
-                `).join('');
-            }
-        }
-        
-        async function updateKioskText() {
-            if (!isAuthReady) return;
-            const docRef = doc(db, `artifacts/${appId}/users/${userId}/kioskData/status`);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                document.getElementById('kiosk-text').textContent = docSnap.data().text;
-            } else {
-                // Initialize if not exists
-                await setDoc(docRef, { text: "Welcome to our kiosk!" });
-            }
-        }
-
-        // NEW: File Distribution App Logic
+        // File Distribution App Logic
         const FILE_COLLECTION = `artifacts/${appId}/public/data/distributedFiles`;
         const POLYGON_CHAIN_ID = '0x89'; // Polygon Mainnet Chain ID
         const USDT_CONTRACT_ADDRESS = '0xc2132d05d31c914a87c6611c10748aeb04b58e8f'; // USDT contract on Polygon
@@ -387,25 +278,34 @@
             }
         }
 
-        // Function to upload file content to Firestore
+        // Function to upload file to Cloud Storage and save details to Firestore
         async function uploadFileToFirestore(file, price) {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const fileContent = e.target.result; // base64 string
-                try {
-                    await setDoc(doc(collection(db, FILE_COLLECTION)), {
-                        name: file.name,
-                        price: parseFloat(price),
-                        content: fileContent,
-                        timestamp: new Date()
-                    });
-                    showCustomAlert("File uploaded successfully!");
-                } catch (e) {
-                    console.error("Error uploading file:", e);
-                    showCustomAlert("Error uploading file. Please try again.");
-                }
-            };
-            reader.readAsDataURL(file);
+            const fileRef = ref(storage, `${appId}/distributedFiles/${file.name}`);
+            try {
+                // Upload file to Cloud Storage
+                await uploadBytes(fileRef, file);
+                const downloadUrl = await getDownloadURL(fileRef);
+
+                // Save file metadata and download URL to Firestore
+                await setDoc(doc(collection(db, FILE_COLLECTION)), {
+                    name: file.name,
+                    price: parseFloat(price),
+                    downloadUrl: downloadUrl,
+                    timestamp: new Date()
+                });
+                
+                showCustomAlert("File uploaded successfully!");
+                
+                // Show the generated link to the admin
+                const linkContainer = document.getElementById('upload-link-container');
+                const linkInput = document.getElementById('generated-link-input');
+                linkInput.value = downloadUrl;
+                linkContainer.classList.remove('hidden');
+
+            } catch (e) {
+                console.error("Error uploading file:", e);
+                showCustomAlert("Error uploading file. Please try again.");
+            }
         }
         
         // Function to render the list of files for purchase
@@ -458,13 +358,13 @@
 
                 await showCustomAlert("Transaction confirmed! Downloading file...");
 
-                // Get file content from Firestore
+                // Get file download URL from Firestore
                 const fileDocRef = doc(db, FILE_COLLECTION, fileId);
                 const fileDocSnap = await getDoc(fileDocRef);
                 if (fileDocSnap.exists()) {
                     const fileData = fileDocSnap.data();
                     const link = document.createElement('a');
-                    link.href = fileData.content;
+                    link.href = fileData.downloadUrl;
                     link.download = fileData.name;
                     document.body.appendChild(link);
                     link.click();
@@ -484,9 +384,6 @@
         document.addEventListener('DOMContentLoaded', async () => {
             await signIn();
 
-            const menuContainer = document.getElementById('menu-container');
-            const orderList = document.getElementById('order-list');
-            const copyOrdersBtn = document.getElementById('copy-orders-btn');
             const connectMetamaskBtn = document.getElementById('connect-metamask-btn');
             const adminPanel = document.getElementById('admin-panel');
             const showAdminPanelBtn = document.getElementById('show-admin-panel-btn');
@@ -494,35 +391,9 @@
             const fileUploadInput = document.getElementById('file-upload-input');
             const filePriceInput = document.getElementById('file-price-input');
             const filesListDiv = document.getElementById('files-list');
+            const copyLinkBtn = document.getElementById('copy-link-btn');
 
-            // Original event listeners (unchanged)
-            menuContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('add-to-order-btn')) {
-                    const itemId = parseInt(e.target.dataset.id);
-                    const item = menuItems.find(i => i.id === itemId);
-                    if (item) {
-                        orders.push(item);
-                        updateOrderSummary();
-                    }
-                }
-            });
-
-            copyOrdersBtn.addEventListener('click', async () => {
-                const completedOrdersText = `Order Summary:\n${'-'.repeat(30)}\n` +
-                    orders.map((item, index) => {
-                        return `${index + 1}. ${item.name} - $${item.price.toFixed(2)}`;
-                    }).join('\n');
-                
-                try {
-                    await navigator.clipboard.writeText(completedOrdersText);
-                    showCustomAlert("Completed orders copied to clipboard!");
-                } catch (err) {
-                    console.error('Failed to copy text: ', err);
-                    showCustomAlert("Failed to copy orders to clipboard. Please try again.");
-                }
-            });
-
-            // NEW: Admin and File Distribution Event Listeners
+            // Admin and File Distribution Event Listeners
             showAdminPanelBtn.addEventListener('click', () => {
                 adminPanel.classList.toggle('hidden');
             });
@@ -535,6 +406,17 @@
                     return;
                 }
                 uploadFileToFirestore(file, price);
+            });
+
+            copyLinkBtn.addEventListener('click', async () => {
+                const linkInput = document.getElementById('generated-link-input');
+                try {
+                    await navigator.clipboard.writeText(linkInput.value);
+                    showCustomAlert("Download link copied to clipboard!");
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    showCustomAlert("Failed to copy the link. Please try again.");
+                }
             });
 
             // Real-time listener for the file distribution list
@@ -559,13 +441,7 @@
                 }
             });
             
-            // Existing MetaMask connection logic, now with new function
             connectMetamaskBtn.addEventListener('click', connectAndSetupWeb3);
-
-            // Initial load
-            updateOrderSummary();
-            loadMenuItems();
-            loadProviders();
         });
     </script>
 </body>
